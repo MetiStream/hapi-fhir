@@ -134,6 +134,12 @@
 			<artifactId>derbyclient</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<version>9.4.1208</version>
+		</dependency>
+
 		<!-- The following dependencies are only needed for automated unit tests, you do not neccesarily need them to run the example. -->
 		<dependency>
 			<groupId>org.eclipse.jetty</groupId>
