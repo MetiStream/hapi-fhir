@@ -23,6 +23,8 @@ package ca.uhn.fhir.util;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
+import java.util.Locale;
+import java.util.TimeZone;
 
 public class TestUtil {
 	private static final org.slf4j.Logger ourLog = org.slf4j.LoggerFactory.getLogger(TestUtil.class);
@@ -34,7 +36,6 @@ public class TestUtil {
 	 * tons of memory being used by the end and the JVM crashes in Travis. Manually clearing all of the
 	 * static fields seems to solve this.
 	 */
-	@CoverageIgnore
 	public static void clearAllStaticFieldsForUnitTest() {
 		
 		Class<?> theType;
@@ -64,6 +65,29 @@ public class TestUtil {
 				}
 			}
 		}
+
+		/*
+		 * Set some system properties randomly after each test.. this is kind of hackish,
+		 * but it helps us make sure we don't have any tests that depend on a particular
+		 * environment 
+		 */
+		Locale[] availableLocales = { Locale.CANADA, Locale.GERMANY, Locale.TAIWAN };
+		Locale.setDefault(availableLocales[(int) (Math.random() * availableLocales.length)]);
+		ourLog.info("Tests are running in locale: " + Locale.getDefault().getDisplayName());
+		if (Math.random() < 0.5) {
+			ourLog.info("Tests are using WINDOWS line endings and ISO-8851-1");
+			System.setProperty("file.encoding", "ISO-8859-1");
+			System.setProperty("line.separator", "\r\n");
+		} else {
+			ourLog.info("Tests are using UNIX line endings and UTF-8");
+			System.setProperty("file.encoding", "UTF-8");
+			System.setProperty("line.separator", "\n");
+		}
+		String availableTimeZones[] = { "GMT+08:00", "GMT-05:00", "GMT+00:00", "GMT+03:30" }; 
+		String timeZone = availableTimeZones[(int)(Math.random() * availableTimeZones.length)];
+		TimeZone.setDefault(TimeZone.getTimeZone(timeZone));
+		ourLog.info("Tests are using time zone: {}", TimeZone.getDefault().getID());
+		
 	}
 	
 }

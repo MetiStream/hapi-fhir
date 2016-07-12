@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -30,6 +31,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.rest.annotation.IdParam;
 import ca.uhn.fhir.rest.annotation.ResourceParam;
 import ca.uhn.fhir.rest.annotation.Validate;
 import ca.uhn.fhir.rest.api.MethodOutcome;
@@ -41,13 +43,16 @@ public class ValidateDstu3Test {
 	private static CloseableHttpClient ourClient;
 	private static FhirContext ourCtx = FhirContext.forDstu3();
 	private static EncodingEnum ourLastEncoding;
+	private static IdType ourLastId;
 	private static ValidationModeEnum ourLastMode;
+	public static Patient ourLastPatient;
 	private static String ourLastProfile;
 	private static String ourLastResourceBody;
+	private static final org.slf4j.Logger ourLog = org.slf4j.LoggerFactory.getLogger(ValidateDstu3Test.class);
 	private static OperationOutcome ourOutcomeToReturn;
 	private static int ourPort;
+
 	private static Server ourServer;
-	public static Patient ourLastPatient;
 
 	@Before()
 	public void before() {
@@ -57,7 +62,6 @@ public class ValidateDstu3Test {
 		ourLastMode = null;
 		ourLastProfile = null;
 	}
-
 
 	@Test
 	public void testValidate() throws Exception {
@@ -79,6 +83,27 @@ public class ValidateDstu3Test {
 		assertEquals(200, status.getStatusLine().getStatusCode());
 
 		assertThat(resp, stringContainsInOrder("<OperationOutcome"));
+	}
+
+	@Test
+	public void testValidateBlankMode() throws Exception {
+
+		Patient patient = new Patient();
+		patient.addIdentifier().setValue("001");
+		patient.addIdentifier().setValue("002");
+
+		Parameters params = new Parameters();
+		params.addParameter().setName("resource").setResource(patient);
+		params.addParameter().setName("mode").setValue(new CodeType(" "));
+
+		HttpPost httpPost = new HttpPost("http://localhost:" + ourPort + "/Patient/$validate");
+		httpPost.setEntity(new StringEntity(ourCtx.newXmlParser().encodeResourceToString(params), ContentType.create(Constants.CT_FHIR_XML, "UTF-8")));
+
+		HttpResponse status = ourClient.execute(httpPost);
+		String resp = IOUtils.toString(status.getEntity().getContent());
+		IOUtils.closeQuietly(status.getEntity().getContent());
+
+		assertEquals(200, status.getStatusLine().getStatusCode());
 	}
 
 	@Test
@@ -105,27 +130,6 @@ public class ValidateDstu3Test {
 	}
 
 	@Test
-	public void testValidateBlankMode() throws Exception {
-
-		Patient patient = new Patient();
-		patient.addIdentifier().setValue("001");
-		patient.addIdentifier().setValue("002");
-
-		Parameters params = new Parameters();
-		params.addParameter().setName("resource").setResource(patient);
-		params.addParameter().setName("mode").setValue(new CodeType(" "));
-
-		HttpPost httpPost = new HttpPost("http://localhost:" + ourPort + "/Patient/$validate");
-		httpPost.setEntity(new StringEntity(ourCtx.newXmlParser().encodeResourceToString(params), ContentType.create(Constants.CT_FHIR_XML, "UTF-8")));
-
-		HttpResponse status = ourClient.execute(httpPost);
-		String resp = IOUtils.toString(status.getEntity().getContent());
-		IOUtils.closeQuietly(status.getEntity().getContent());
-
-		assertEquals(200, status.getStatusLine().getStatusCode());
-	}
-
-	@Test
 	public void testValidateMissingResource() throws Exception {
 
 		Patient patient = new Patient();
@@ -144,6 +148,25 @@ public class ValidateDstu3Test {
 
 		assertEquals(null, ourLastPatient);
 		assertEquals(200, status.getStatusLine().getStatusCode());
+	}
+
+	@Test
+	public void testValidateWithGet() throws Exception {
+		ourOutcomeToReturn = new OperationOutcome();
+		ourOutcomeToReturn.addIssue().setDiagnostics("FOOBAR");
+
+		HttpGet httpGet = new HttpGet("http://localhost:" + ourPort + "/Patient/123/$validate");
+
+		HttpResponse status = ourClient.execute(httpGet);
+		String resp = IOUtils.toString(status.getEntity().getContent());
+		IOUtils.closeQuietly(status.getEntity().getContent());
+
+		assertEquals(200, status.getStatusLine().getStatusCode());
+
+		assertThat(resp, stringContainsInOrder("<OperationOutcome", "FOOBAR"));
+		assertEquals(null, ourLastPatient);
+		assertEquals("Patient", ourLastId.getResourceType());
+		assertEquals("123", ourLastId.getIdPart());
 	}
 
 	@Test
@@ -184,6 +207,7 @@ public class ValidateDstu3Test {
 
 		HttpResponse status = ourClient.execute(httpPost);
 		String resp = IOUtils.toString(status.getEntity().getContent());
+		ourLog.info(resp);
 		IOUtils.closeQuietly(status.getEntity().getContent());
 
 		assertEquals(200, status.getStatusLine().getStatusCode());
@@ -271,15 +295,16 @@ public class ValidateDstu3Test {
 		}
 
 		@Validate()
-		public MethodOutcome validatePatient(@ResourceParam Patient thePatient, @Validate.Mode ValidationModeEnum theMode, @Validate.Profile String theProfile) {
-			
+		public MethodOutcome validatePatient(@ResourceParam Patient thePatient, @IdParam(optional=true) IdType theId, @Validate.Mode ValidationModeEnum theMode, @Validate.Profile String theProfile) {
+
 			ourLastPatient = thePatient;
+			ourLastId = theId;
 			IdType id;
 			if (thePatient != null) {
-			id = new IdType(thePatient.getIdentifier().get(0).getValue());
-			if (thePatient.getIdElement().isEmpty() == false) {
-				id = thePatient.getIdElement();
-			}
+				id = new IdType(thePatient.getIdentifier().get(0).getValue());
+				if (thePatient.getIdElement().isEmpty() == false) {
+					id = thePatient.getIdElement();
+				}
 			} else {
 				id = new IdType("1");
 			}

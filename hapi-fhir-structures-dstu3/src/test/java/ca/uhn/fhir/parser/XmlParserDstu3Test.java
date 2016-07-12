@@ -105,6 +105,7 @@ import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.model.api.annotation.Child;
 import ca.uhn.fhir.model.api.annotation.ResourceDef;
 import ca.uhn.fhir.narrative.DefaultThymeleafNarrativeGenerator;
+import ca.uhn.fhir.parser.FooMessageHeaderWithExplicitField.FooMessageSourceComponent;
 import ca.uhn.fhir.parser.IParserErrorHandler.IParseLocation;
 import ca.uhn.fhir.rest.client.IGenericClient;
 import ca.uhn.fhir.rest.server.Constants;
@@ -117,87 +118,6 @@ public class XmlParserDstu3Test {
 	@After
 	public void after() {
 		ourCtx.setNarrativeGenerator(null);
-	}
-
-	/**
-	 * Make sure whitespace is preserved for pre tags
-	 */
-	@Test
-	public void testEncodeDivWithPreNonPrettyPrint() {
-		
-		Patient p = new Patient();
-		p.getText().setDivAsString("<div>\n\n<p>A P TAG</p><p><pre>line1\nline2\nline3  <b>BOLD</b></pre></p></div>");
-		
-		String output = ourCtx.newXmlParser().setPrettyPrint(false).encodeResourceToString(p);
-		ourLog.info(output);
-		
-		//@formatter:off
-		assertThat(output, stringContainsInOrder(
-			"<text><div",
-			"<p>A P TAG</p><p>",
-			"<pre>line1\nline2\nline3  <b>BOLD</b></pre>"
-		));
-		//@formatter:on
-		
-	}
-
-	
-	@Test
-	public void testEncodeDivWithPrePrettyPrint() {
-		
-		Patient p = new Patient();
-		p.getText().setDivAsString("<div>\n\n<p>A P TAG</p><p><pre>line1\nline2\nline3  <b>BOLD</b></pre></p></div>");
-		
-		String output = ourCtx.newXmlParser().setPrettyPrint(true).encodeResourceToString(p);
-		ourLog.info(output);
-		
-		//@formatter:off
-		assertThat(output, stringContainsInOrder(
-			"   <text>",
-			"      <div",
-			"         <pre>line1\nline2\nline3  <b>BOLD</b></pre>"
-		));
-		//@formatter:on
-		
-	}
-
-	
-	@Test
-	public void testEncodeContainedWithNonLocalId() throws Exception {
-
-		Patient p = new Patient();
-		p.setId("Patient1");
-		p.setBirthDate(new SimpleDateFormat("yyyy-mm-dd HH:mm:ss").parse("2016-04-15 10:15:30"));
-
-		ProcedureRequest pr = new ProcedureRequest();
-		pr.setId("1234567");
-		pr.setSubject(new Reference(p));
-		pr.setCode(new CodeableConcept().addCoding(new Coding("breastfeeding-readiness-assessment", "Breastfeeding Readiness Assessment", "Breastfeeding Readiness Assessment")));
-//		pr.setReason(new StringType("Single Live Birth"));
-//		pr.setScheduled(new DateType(new Date()));
-		pr.setEncounter(new Reference("Live Birth Encounter"));
-		pr.setPerformer(new Reference("Charge Nurse"));
-		pr.setStatus(ProcedureRequest.ProcedureRequestStatus.PROPOSED);
-		pr.setOrderedOn(new Date());
-		pr.setOrderer(new Reference("CDS System"));
-		pr.setPriority(ProcedureRequest.ProcedureRequestPriority.ROUTINE);
-
-		GuidanceResponse.GuidanceResponseStatus status = GuidanceResponse.GuidanceResponseStatus.SUCCESS;
-
-		//@formatter:off
-		GuidanceResponse gr = new GuidanceResponse()
-				.setRequestId("123")
-				.setModule(new Reference("Evaluate Operation"))
-				.setStatus(status);
-		//@formatter:on
-
-		gr.addAction(new GuidanceResponse.GuidanceResponseActionComponent().setTitle("Action").setResource(new Reference(pr)));
-		gr.getContained().add(p);
-		gr.getContained().add(pr);
-
-		IParser parser = ourCtx.newXmlParser();
-		parser.setPrettyPrint(true);
-		ourLog.info(parser.encodeResourceToString(gr));
 	}
 
 	@Test
@@ -231,6 +151,7 @@ public class XmlParserDstu3Test {
 
 	}
 
+	
 	@Test
 	public void testContainedResourceInExtensionUndeclared() {
 		Patient p = new Patient();
@@ -253,6 +174,7 @@ public class XmlParserDstu3Test {
 		assertEquals("ORG", o.getName());
 	}
 
+	
 	@Test
 	public void testDuration() {
 		Encounter enc = new Encounter();
@@ -1041,6 +963,85 @@ public class XmlParserDstu3Test {
 	}
 
 	@Test
+	public void testEncodeContainedWithNonLocalId() throws Exception {
+
+		Patient p = new Patient();
+		p.setId("Patient1");
+		p.setBirthDate(new SimpleDateFormat("yyyy-mm-dd HH:mm:ss").parse("2016-04-15 10:15:30"));
+
+		ProcedureRequest pr = new ProcedureRequest();
+		pr.setId("1234567");
+		pr.setSubject(new Reference(p));
+		pr.setCode(new CodeableConcept().addCoding(new Coding("breastfeeding-readiness-assessment", "Breastfeeding Readiness Assessment", "Breastfeeding Readiness Assessment")));
+//		pr.setReason(new StringType("Single Live Birth"));
+//		pr.setScheduled(new DateType(new Date()));
+		pr.setEncounter(new Reference("Live Birth Encounter"));
+		pr.setPerformer(new Reference("Charge Nurse"));
+		pr.setStatus(ProcedureRequest.ProcedureRequestStatus.PROPOSED);
+		pr.setOrderedOn(new Date());
+		pr.setOrderer(new Reference("CDS System"));
+		pr.setPriority(ProcedureRequest.ProcedureRequestPriority.ROUTINE);
+
+		GuidanceResponse.GuidanceResponseStatus status = GuidanceResponse.GuidanceResponseStatus.SUCCESS;
+
+		//@formatter:off
+		GuidanceResponse gr = new GuidanceResponse()
+				.setRequestId("123")
+				.setModule(new Reference("Evaluate Operation"))
+				.setStatus(status);
+		//@formatter:on
+
+		gr.addAction(new GuidanceResponse.GuidanceResponseActionComponent().setTitle("Action").setResource(new Reference(pr)));
+		gr.getContained().add(p);
+		gr.getContained().add(pr);
+
+		IParser parser = ourCtx.newXmlParser();
+		parser.setPrettyPrint(true);
+		ourLog.info(parser.encodeResourceToString(gr));
+	}
+
+	/**
+	 * Make sure whitespace is preserved for pre tags
+	 */
+	@Test
+	public void testEncodeDivWithPreNonPrettyPrint() {
+		
+		Patient p = new Patient();
+		p.getText().setDivAsString("<div>\n\n<p>A P TAG</p><p><pre>line1\nline2\nline3  <b>BOLD</b></pre></p></div>");
+		
+		String output = ourCtx.newXmlParser().setPrettyPrint(false).encodeResourceToString(p);
+		ourLog.info(output);
+		
+		//@formatter:off
+		assertThat(output, stringContainsInOrder(
+			"<text><div",
+			"<p>A P TAG</p><p>",
+			"<pre>line1\nline2\nline3  <b>BOLD</b></pre>"
+		));
+		//@formatter:on
+		
+	}
+
+	@Test
+	public void testEncodeDivWithPrePrettyPrint() {
+		
+		Patient p = new Patient();
+		p.getText().setDivAsString("<div>\n\n<p>A P TAG</p><p><pre>line1\nline2\nline3  <b>BOLD</b></pre></p></div>");
+		
+		String output = ourCtx.newXmlParser().setPrettyPrint(true).encodeResourceToString(p);
+		ourLog.info(output);
+		
+		//@formatter:off
+		assertThat(output, stringContainsInOrder(
+			"   <text>",
+			"      <div",
+			"         <pre>line1\nline2\nline3  <b>BOLD</b></pre>"
+		));
+		//@formatter:on
+		
+	}
+
+	@Test
 	public void testEncodeDoesntIncludeUuidId() {
 		Patient p = new Patient();
 		p.setId(new IdType("urn:uuid:42795ed8-041f-4ebf-b6f4-78ef6f64c2f2"));
@@ -1397,6 +1398,54 @@ public class XmlParserDstu3Test {
 	}
 
 	@Test
+	public void testEncodeUndeclaredBlock() throws Exception {
+		FooMessageHeader.FooMessageSourceComponent source = new FooMessageHeader.FooMessageSourceComponent();
+		source.getMessageHeaderApplicationId().setValue("APPID");
+		source.setName("NAME");
+		
+		FooMessageHeader header = new FooMessageHeader();
+		header.setSource(source);
+		
+		header.addDestination().setName("DEST");
+		
+		Bundle bundle = new Bundle();
+		bundle.addEntry().setResource(header);
+		
+      IParser p = ourCtx.newXmlParser();
+      p.setPrettyPrint(true);
+
+      String encode = p.encodeResourceToString(bundle);
+      ourLog.info(encode);
+      
+      assertThat(encode, containsString("<value value=\"APPID\"/>"));
+      assertThat(encode, stringContainsInOrder("<source", "<dest"));
+	}
+
+	@Test
+	public void testEncodeDeclaredBlock() throws Exception {
+		FooMessageSourceComponent source = new FooMessageHeaderWithExplicitField.FooMessageSourceComponent();
+		source.getMessageHeaderApplicationId().setValue("APPID");
+		source.setName("NAME");
+		
+		FooMessageHeaderWithExplicitField header = new FooMessageHeaderWithExplicitField();
+		header.setSourceNew(source);
+		
+		header.addDestination().setName("DEST");
+		
+		Bundle bundle = new Bundle();
+		bundle.addEntry().setResource(header);
+		
+      IParser p = ourCtx.newXmlParser();
+      p.setPrettyPrint(true);
+
+      String encode = p.encodeResourceToString(bundle);
+      ourLog.info(encode);
+      
+      assertThat(encode, containsString("<value value=\"APPID\"/>"));
+      assertThat(encode, stringContainsInOrder("<source", "<dest"));
+	}
+
+	@Test
 	public void testEncodeUndeclaredExtensionWithEnumerationContent() {
 		IParser parser = ourCtx.newXmlParser();
 
@@ -1605,6 +1654,54 @@ public class XmlParserDstu3Test {
 		ourLog.info(output);
 
 		assertThat(output, containsString("<text><status value=\"generated\"/><div xmlns=\"http://www.w3.org/1999/xhtml\"><div class=\"hapiHeaderText\"> John <b>SMITH </b>"));
+	}
+
+	@Test
+	public void testExceptionWithoutUrl() {
+		//@formatter:off
+		String input =
+			"<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>" + 
+			"<Patient xmlns=\"http://hl7.org/fhir\">" +
+				"<extension>" + 
+					"<valueString value=\"FOO\">" + 
+				"</extension>" +
+				"<address>" + 
+					"<line value=\"FOO\"/>" + 
+				"</address>" +
+			"</Patient>";
+		//@formatter:on
+
+		try {
+			ourCtx.newXmlParser().parseResource(Patient.class, input);
+			fail();
+		} catch (DataFormatException e) {
+			assertThat(e.toString(), containsString("Extension element has no 'url' attribute"));
+		}
+
+	}
+
+	@Test
+	public void testModifierExceptionWithoutUrl() {
+		//@formatter:off
+		String input =
+			"<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>" + 
+			"<Patient xmlns=\"http://hl7.org/fhir\">" +
+				"<modifierExtension>" + 
+					"<valueString value=\"FOO\">" + 
+				"</modifierExtension>" +
+				"<address>" + 
+					"<line value=\"FOO\"/>" + 
+				"</address>" +
+			"</Patient>";
+		//@formatter:on
+
+		try {
+			ourCtx.newXmlParser().parseResource(Patient.class, input);
+			fail();
+		} catch (DataFormatException e) {
+			assertThat(e.toString(), containsString("Extension element has no 'url' attribute"));
+		}
+
 	}
 
 	@Test
@@ -2391,7 +2488,7 @@ public class XmlParserDstu3Test {
 		assertEquals("http://localhost:58402/fhir/context/Patient/1/_history/2", bundle.getEntry().get(1).getResource().getIdElement().getValue());
 		assertEquals("http://localhost:58402/fhir/context/Patient/1/_history/1", bundle.getEntry().get(2).getResource().getIdElement().getValue());
 	}
-
+	
 	/**
 	 * see #144 and #146
 	 */
@@ -2471,7 +2568,7 @@ public class XmlParserDstu3Test {
 	public void testParseInvalid() {
 		ourCtx.newXmlParser().parseResource("FOO");
 	}
-	
+
 	/**
 	 * See #366
 	 */
@@ -2712,7 +2809,8 @@ public class XmlParserDstu3Test {
 			assertEquals("DataFormatException at [[row,col {unknown-source}]: [2,4]]: Unknown element 'valueSampleddata' found during parse", e.getMessage());
 		}
 	}
-
+	
+	
 	/**
 	 * See #339
 	 * 

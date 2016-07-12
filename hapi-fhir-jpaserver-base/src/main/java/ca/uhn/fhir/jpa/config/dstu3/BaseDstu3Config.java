@@ -1,7 +1,6 @@
 package ca.uhn.fhir.jpa.config.dstu3;
 
 import org.hl7.fhir.dstu3.hapi.validation.FhirInstanceValidator;
-import org.hl7.fhir.dstu3.hapi.validation.HapiWorkerContext;
 import org.hl7.fhir.dstu3.hapi.validation.IValidationSupport;
 import org.hl7.fhir.dstu3.validation.IResourceValidator.BestPracticeWarningLevel;
 
@@ -61,11 +60,6 @@ public class BaseDstu3Config extends BaseConfig {
 	}
 
 	@Bean
-	public HapiWorkerContext workerContext() {
-		return new HapiWorkerContext(defaultFhirContext(), validationSupportChainDstu3());
-	}
-
-	@Bean
 	@Primary
 	public FhirContext defaultFhirContext() {
 		return fhirContextDstu3();
@@ -101,6 +95,7 @@ public class BaseDstu3Config extends BaseConfig {
 	@Bean(name = "mySystemProviderDstu3")
 	public ca.uhn.fhir.jpa.provider.dstu3.JpaSystemProviderDstu3 systemProviderDstu3() {
 		ca.uhn.fhir.jpa.provider.dstu3.JpaSystemProviderDstu3 retVal = new ca.uhn.fhir.jpa.provider.dstu3.JpaSystemProviderDstu3();
+		retVal.setContext(defaultFhirContext());
 		retVal.setDao(systemDaoDstu3());
 		return retVal;
 	}

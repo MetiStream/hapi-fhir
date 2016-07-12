@@ -1,7 +1,5 @@
 package org.hl7.fhir.dstu3.hapi.validation;
 
-import static org.apache.commons.lang3.StringUtils.isNotBlank;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -12,8 +10,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.lang3.Validate;
-import org.apache.commons.lang3.StringUtils;
-import org.hl7.fhir.dstu3.exceptions.TerminologyServiceException;
 import org.hl7.fhir.dstu3.formats.IParser;
 import org.hl7.fhir.dstu3.formats.ParserType;
 import org.hl7.fhir.dstu3.hapi.validation.IValidationSupport.CodeValidationResult;
@@ -27,9 +23,7 @@ import org.hl7.fhir.dstu3.model.OperationOutcome.IssueSeverity;
 import org.hl7.fhir.dstu3.model.Resource;
 import org.hl7.fhir.dstu3.model.ResourceType;
 import org.hl7.fhir.dstu3.model.StructureDefinition;
-import org.hl7.fhir.dstu3.model.UriType;
 import org.hl7.fhir.dstu3.model.ValueSet;
-import org.hl7.fhir.dstu3.model.ValueSet.ConceptReferenceComponent;
 import org.hl7.fhir.dstu3.model.ValueSet.ConceptSetComponent;
 import org.hl7.fhir.dstu3.model.ValueSet.ValueSetExpansionComponent;
 import org.hl7.fhir.dstu3.model.ValueSet.ValueSetExpansionContainsComponent;
@@ -67,6 +61,8 @@ public final class HapiWorkerContext implements IWorkerContext, ValueSetExpander
 		ValueSetExpansionOutcome vso;
 		try {
 			vso = getExpander().expand(theSource);
+		} catch (InvalidRequestException e) {
+			throw e;
 		} catch (Exception e) {
 			throw new InternalErrorException(e);
 		}
@@ -125,7 +121,9 @@ public final class HapiWorkerContext implements IWorkerContext, ValueSetExpander
 
 	@Override
 	public ValueSetExpander getExpander() {
-		return new ValueSetExpanderSimple(this, this);
+		ValueSetExpanderSimple retVal = new ValueSetExpanderSimple(this, this);
+		retVal.setMaxExpansionSize(Integer.MAX_VALUE);
+		return retVal;
 	}
 
 	@Override

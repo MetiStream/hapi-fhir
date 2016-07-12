@@ -33,6 +33,7 @@ import org.hibernate.search.jpa.FullTextEntityManager;
 import org.hibernate.search.jpa.FullTextQuery;
 import org.hibernate.search.query.dsl.BooleanJunction;
 import org.hibernate.search.query.dsl.QueryBuilder;
+import org.hl7.fhir.dstu3.hapi.validation.HapiWorkerContext;
 import org.hl7.fhir.dstu3.hapi.validation.IValidationSupport;
 import org.hl7.fhir.dstu3.model.CodeSystem;
 import org.hl7.fhir.dstu3.model.CodeSystem.CodeSystemContentMode;
@@ -64,6 +65,7 @@ import ca.uhn.fhir.jpa.entity.TermCodeSystem;
 import ca.uhn.fhir.jpa.entity.TermCodeSystemVersion;
 import ca.uhn.fhir.jpa.entity.TermConcept;
 import ca.uhn.fhir.rest.method.RequestDetails;
+import ca.uhn.fhir.rest.server.exceptions.BaseServerResponseException;
 import ca.uhn.fhir.rest.server.exceptions.InternalErrorException;
 import ca.uhn.fhir.rest.server.exceptions.InvalidRequestException;
 import ca.uhn.fhir.util.CoverageIgnore;
@@ -76,58 +78,105 @@ public class HapiTerminologySvcDstu3 extends BaseHapiTerminologySvc implements I
 	private IFhirResourceDaoCodeSystem<CodeSystem, Coding, CodeableConcept> myCodeSystemResourceDao;
 
 	@Autowired
-	private ValueSetExpander myValueSetExpander;
-
-	@Override
-	public List<VersionIndependentConcept> expandValueSet(String theValueSet) {
-		ValueSet source = new ValueSet();
-		source.getCompose().addImport(theValueSet);
-		try {
-			ArrayList<VersionIndependentConcept> retVal = new ArrayList<VersionIndependentConcept>();
-
-			ValueSetExpansionOutcome outcome = myValueSetExpander.expand(source);
-			for (ValueSetExpansionContainsComponent next : outcome.getValueset().getExpansion().getContains()) {
-				retVal.add(new VersionIndependentConcept(next.getSystem(), next.getCode()));
-			}
-
-			return retVal;
-
-		} catch (Exception e) {
-			throw new InternalErrorException(e);
+	private IValidationSupport myValidationSupport;
+	
+	private void addCodeIfNotAlreadyAdded(String system, ValueSetExpansionComponent retVal, Set<String> addedCodes, TermConcept nextConcept) {
+		if (addedCodes.add(nextConcept.getCode())) {
+			ValueSetExpansionContainsComponent contains = retVal.addContains();
+			contains.setCode(nextConcept.getCode());
+			contains.setSystem(system);
+			contains.setDisplay(nextConcept.getDisplay());
 		}
-
 	}
 
 	@Override
-	@Transactional(propagation=Propagation.REQUIRED)
-	public void storeNewCodeSystemVersion(String theSystem, TermCodeSystemVersion theCodeSystemVersion, RequestDetails theRequestDetails) {
-		CodeSystem cs = new org.hl7.fhir.dstu3.model.CodeSystem();
-		cs.setUrl(theSystem);
-		cs.setContent(CodeSystemContentMode.NOTPRESENT);
-		
-		DaoMethodOutcome createOutcome = myCodeSystemResourceDao.create(cs, "CodeSystem?url=" + UrlUtil.escape(theSystem), theRequestDetails);
-		IIdType csId = createOutcome.getId().toUnqualifiedVersionless();
-		if (createOutcome.getCreated() != Boolean.TRUE) {
-			CodeSystem existing = myCodeSystemResourceDao.read(csId, theRequestDetails);
-			csId = myCodeSystemResourceDao.update(existing, theRequestDetails).getId();
-			
-			ourLog.info("Created new version of CodeSystem, got ID: {}", csId.toUnqualified().getValue());
+	protected List<VersionIndependentConcept> findCodesBelowUsingBuiltInSystems(String theSystem, String theCode) {
+		ArrayList<VersionIndependentConcept> retVal = new ArrayList<VersionIndependentConcept>();
+		CodeSystem system = myValidationSupport.fetchCodeSystem(myContext, theSystem);
+		if (system != null) {
+			findCodesBelow(system, theSystem, theCode, retVal);
+		}
+		return retVal;
+	}
+
+	private void findCodesBelow(CodeSystem theSystem, String theSystemString, String theCode, List<VersionIndependentConcept> theListToPopulate) {
+		List<ConceptDefinitionComponent> conceptList = theSystem.getConcept();
+		findCodesBelow(theSystemString, theCode, theListToPopulate, conceptList);
+	}
+
+	private void findCodesBelow(String theSystemString, String theCode, List<VersionIndependentConcept> theListToPopulate, List<ConceptDefinitionComponent> conceptList) {
+		for (ConceptDefinitionComponent next : conceptList) {
+			if (theCode.equals(next.getCode())) {
+				addAllChildren(theSystemString, next, theListToPopulate);
+			} else {
+				findCodesBelow(theSystemString, theCode, theListToPopulate, next.getConcept());
+			}
+		}
+	}
+
+	private void findCodesAbove(CodeSystem theSystem, String theSystemString, String theCode, List<VersionIndependentConcept> theListToPopulate) {
+		List<ConceptDefinitionComponent> conceptList = theSystem.getConcept();
+		for (ConceptDefinitionComponent next : conceptList) {
+			addTreeIfItContainsCode(theSystemString, next, theCode, theListToPopulate);
+		}
+	}
+
+	private boolean addTreeIfItContainsCode(String theSystemString, ConceptDefinitionComponent theNext, String theCode, List<VersionIndependentConcept> theListToPopulate) {
+		boolean foundCodeInChild = false;
+		for (ConceptDefinitionComponent nextChild : theNext.getConcept()) {
+			foundCodeInChild |= addTreeIfItContainsCode(theSystemString, nextChild, theCode, theListToPopulate);
 		}
 		
-		ResourceTable resource = (ResourceTable) myCodeSystemResourceDao.readEntity(csId);
-		Long codeSystemResourcePid = resource.getId();
+		if (theCode.equals(theNext.getCode()) || foundCodeInChild) {
+			theListToPopulate.add(new VersionIndependentConcept(theSystemString, theNext.getCode()));
+			return true;
+		}
+		
+		return false;
+	}
 
-		ourLog.info("CodeSystem resource has ID: {}", csId.getValue());
+	private void addAllChildren(String theSystemString, ConceptDefinitionComponent theCode, List<VersionIndependentConcept> theListToPopulate) {
+		if (isNotBlank(theCode.getCode())) {
+			theListToPopulate.add(new VersionIndependentConcept(theSystemString, theCode.getCode()));
+		}
+		for (ConceptDefinitionComponent nextChild : theCode.getConcept()) {
+			addAllChildren(theSystemString, nextChild, theListToPopulate);
+		}
+	}
 
-		theCodeSystemVersion.setResource(resource);
-		theCodeSystemVersion.setResourceVersionId(resource.getVersion());
-		super.storeNewCodeSystemVersion(codeSystemResourcePid, theSystem, theCodeSystemVersion);
+	@Override
+	protected List<VersionIndependentConcept> findCodesAboveUsingBuiltInSystems(String theSystem, String theCode) {
+		ArrayList<VersionIndependentConcept> retVal = new ArrayList<VersionIndependentConcept>();
+		CodeSystem system = myValidationSupport.fetchCodeSystem(myContext, theSystem);
+		if (system != null) {
+			findCodesAbove(system, theSystem, theCode, retVal);
+		}
+		return retVal;
+	}
 
+	private void addDisplayFilterExact(QueryBuilder qb, BooleanJunction<?> bool, ConceptSetFilterComponent nextFilter) {
+		bool.must(qb.phrase().onField("myDisplay").sentence(nextFilter.getValue()).createQuery());
+	}
+
+	private void addDisplayFilterInexact(QueryBuilder qb, BooleanJunction<?> bool, ConceptSetFilterComponent nextFilter) {
+		//@formatter:off
+		Query textQuery = qb
+				.phrase()
+				.withSlop(2)
+				.onField("myDisplay").boostedTo(4.0f)
+				.andField("myDisplayEdgeNGram").boostedTo(2.0f)
+				//.andField("myDisplayNGram").boostedTo(1.0f)
+				//.andField("myDisplayPhonetic").boostedTo(0.5f)
+				.sentence(nextFilter.getValue().toLowerCase()).createQuery();
+		bool.must(textQuery);
+		//@formatter:on
 	}
 
 	@Override
 	public ValueSetExpansionComponent expandValueSet(FhirContext theContext, ConceptSetComponent theInclude) {
 		String system = theInclude.getSystem();
+		ourLog.info("Starting expansion around code system: {}", system);
+
 		TermCodeSystem cs = myCodeSystemDao.findByCodeSystemUri(system);
 		TermCodeSystemVersion csv = cs.getCurrentVersion();
 
@@ -167,27 +216,40 @@ public class HapiTerminologySvcDstu3 extends BaseHapiTerminologySvc implements I
 			bool.must(qb.keyword().onField("myCodeSystemVersionPid").matching(csv.getPid()).createQuery());
 
 			for (ConceptSetFilterComponent nextFilter : theInclude.getFilter()) {
-				if (nextFilter.getProperty().equals("display") && nextFilter.getOp() == FilterOperator.EQUAL) {
-					if (isNotBlank(nextFilter.getValue())) {
-						bool.must(qb.phrase().onField("myDisplay").sentence(nextFilter.getValue()).createQuery());
-					}
-				} else if (nextFilter.getOp() == FilterOperator.ISA) {
-					if (isNotBlank(nextFilter.getValue())) {
+				if (isNotBlank(nextFilter.getValue())) {
+					if (nextFilter.getProperty().equals("display:exact") && nextFilter.getOp() == FilterOperator.EQUAL) {
+						addDisplayFilterExact(qb, bool, nextFilter);
+					} else if (nextFilter.getProperty().equals("display") && nextFilter.getOp() == FilterOperator.EQUAL) {
+						if (nextFilter.getValue().trim().contains(" ")) {
+							addDisplayFilterExact(qb, bool, nextFilter);
+						} else {
+							addDisplayFilterInexact(qb, bool, nextFilter);
+						}
+					} else if ((nextFilter.getProperty().equals("concept") || nextFilter.getProperty().equals("code")) && nextFilter.getOp() == FilterOperator.ISA) {
 						TermConcept code = super.findCode(system, nextFilter.getValue());
+						if (code == null) {
+							throw new InvalidRequestException("Invalid filter criteria - code does not exist: {" + system + "}" + nextFilter.getValue());
+						}
+
+						ourLog.info(" * Filtering on codes with a parent of {}/{}/{}", code.getId(), code.getCode(), code.getDisplay());
 						bool.must(qb.keyword().onField("myParentPids").matching("" + code.getId()).createQuery());
+					} else {
+						throw new InvalidRequestException("Unknown filter property[" + nextFilter + "] + op[" + nextFilter.getOpElement().getValueAsString() + "]");
 					}
-				} else {
-					throw new InvalidRequestException("Unknown filter property[" + nextFilter + "] + op[" + nextFilter.getOpElement().getValueAsString() + "]");
 				}
 			}
 
 			Query luceneQuery = bool.createQuery();
 			FullTextQuery jpaQuery = em.createFullTextQuery(luceneQuery, TermConcept.class);
+			jpaQuery.setMaxResults(1000);
+
 			@SuppressWarnings("unchecked")
 			List<TermConcept> result = jpaQuery.getResultList();
 			for (TermConcept nextConcept : result) {
 				addCodeIfNotAlreadyAdded(system, retVal, addedCodes, nextConcept);
 			}
+			
+			retVal.setTotal(jpaQuery.getResultSize());
 		}
 
 		if (!haveIncludeCriteria) {
@@ -196,19 +258,32 @@ public class HapiTerminologySvcDstu3 extends BaseHapiTerminologySvc implements I
 				addCodeIfNotAlreadyAdded(system, retVal, addedCodes, nextConcept);
 			}
 		}
-		
-		retVal.setTotal(retVal.getContains().size());
-		
+
+
 		return retVal;
 	}
 
-	private void addCodeIfNotAlreadyAdded(String system, ValueSetExpansionComponent retVal, Set<String> addedCodes, TermConcept nextConcept) {
-		if (addedCodes.add(nextConcept.getCode())) {
-			ValueSetExpansionContainsComponent contains = retVal.addContains();
-			contains.setCode(nextConcept.getCode());
-			contains.setSystem(system);
-			contains.setDisplay(nextConcept.getDisplay());
+	@Override
+	public List<VersionIndependentConcept> expandValueSet(String theValueSet) {
+		ValueSet source = new ValueSet();
+		source.getCompose().addImport(theValueSet);
+		try {
+			ArrayList<VersionIndependentConcept> retVal = new ArrayList<VersionIndependentConcept>();
+
+			HapiWorkerContext worker = new HapiWorkerContext(myContext, myValidationSupport);
+			ValueSetExpansionOutcome outcome = worker.expand(source);
+			for (ValueSetExpansionContainsComponent next : outcome.getValueset().getExpansion().getContains()) {
+				retVal.add(new VersionIndependentConcept(next.getSystem(), next.getCode()));
+			}
+
+			return retVal;
+
+		} catch (BaseServerResponseException e) {
+			throw e;
+		} catch (Exception e) {
+			throw new InternalErrorException(e);
 		}
+
 	}
 
 	@Override
@@ -236,6 +311,33 @@ public class HapiTerminologySvcDstu3 extends BaseHapiTerminologySvc implements I
 	@Override
 	public boolean isCodeSystemSupported(FhirContext theContext, String theSystem) {
 		return super.supportsSystem(theSystem);
+	}
+
+	@Override
+	@Transactional(propagation = Propagation.REQUIRED)
+	public void storeNewCodeSystemVersion(String theSystem, TermCodeSystemVersion theCodeSystemVersion, RequestDetails theRequestDetails) {
+		CodeSystem cs = new org.hl7.fhir.dstu3.model.CodeSystem();
+		cs.setUrl(theSystem);
+		cs.setContent(CodeSystemContentMode.NOTPRESENT);
+
+		DaoMethodOutcome createOutcome = myCodeSystemResourceDao.create(cs, "CodeSystem?url=" + UrlUtil.escape(theSystem), theRequestDetails);
+		IIdType csId = createOutcome.getId().toUnqualifiedVersionless();
+		if (createOutcome.getCreated() != Boolean.TRUE) {
+			CodeSystem existing = myCodeSystemResourceDao.read(csId, theRequestDetails);
+			csId = myCodeSystemResourceDao.update(existing, theRequestDetails).getId();
+
+			ourLog.info("Created new version of CodeSystem, got ID: {}", csId.toUnqualified().getValue());
+		}
+
+		ResourceTable resource = (ResourceTable) myCodeSystemResourceDao.readEntity(csId);
+		Long codeSystemResourcePid = resource.getId();
+
+		ourLog.info("CodeSystem resource has ID: {}", csId.getValue());
+
+		theCodeSystemVersion.setResource(resource);
+		theCodeSystemVersion.setResourceVersionId(resource.getVersion());
+		super.storeNewCodeSystemVersion(codeSystemResourcePid, theSystem, theCodeSystemVersion);
+
 	}
 
 	@CoverageIgnore

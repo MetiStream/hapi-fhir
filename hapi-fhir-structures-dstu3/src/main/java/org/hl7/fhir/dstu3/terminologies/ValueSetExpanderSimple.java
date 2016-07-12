@@ -70,13 +70,19 @@ public class ValueSetExpanderSimple implements ValueSetExpander {
 	private Set<String> excludeKeys = new HashSet<String>();
 	private ValueSetExpanderFactory factory;
 	private ValueSet focus;
+	private int maxExpansionSize = 500;
 
 	private Map<String, ValueSetExpansionContainsComponent> map = new HashMap<String, ValueSet.ValueSetExpansionContainsComponent>();
+	private int total;
 
 	public ValueSetExpanderSimple(IWorkerContext context, ValueSetExpanderFactory factory) {
 		super();
 		this.context = context;
 		this.factory = factory;
+	}
+
+	public void setMaxExpansionSize(int theMaxExpansionSize) {
+		maxExpansionSize = theMaxExpansionSize;
 	}
 
 	private void addCode(String system, String code, String display) {
@@ -101,7 +107,7 @@ public class ValueSetExpanderSimple implements ValueSetExpander {
 	}
 
 	private void addCodes(ValueSetExpansionComponent expand, List<ValueSetExpansionParameterComponent> params) throws ETooCostly {
-		if (expand.getContains().size() > 500)
+		if (expand.getContains().size() > maxExpansionSize)
 			throw new ETooCostly("Too many codes to display (>" + Integer.toString(expand.getContains().size()) + ")");
 		for (ValueSetExpansionParameterComponent p : expand.getParameter()) {
 			if (!existsInParams(params, p.getName(), p.getValue()))
@@ -111,6 +117,8 @@ public class ValueSetExpanderSimple implements ValueSetExpander {
 		for (ValueSetExpansionContainsComponent c : expand.getContains()) {
 			addCode(c.getSystem(), c.getCode(), c.getDisplay());
 		}
+		
+		total = expand.getTotal();
 	}
 
 	private void excludeCode(String theSystem, String theCode) {
@@ -171,6 +179,11 @@ public class ValueSetExpanderSimple implements ValueSetExpander {
 					focus.getExpansion().getContains().add(c);
 				}
 			}
+			
+			if (total > 0) {
+				focus.getExpansion().setTotal(total);
+			}
+			
 			return new ValueSetExpansionOutcome(focus, null);
 		} catch (RuntimeException e) {
 			// TODO: we should put something more specific instead of just Exception below, since
@@ -219,8 +232,13 @@ public class ValueSetExpanderSimple implements ValueSetExpander {
 		if (vs == null)
 			throw new TerminologyServiceException("Unable to find imported value set " + value);
 		ValueSetExpansionOutcome vso = factory.getExpander().expand(vs);
-		if (vso.getService() != null)
-			throw new TerminologyServiceException("Unable to expand imported value set " + value);
+		
+		if (isNotBlank(vso.getError())) {
+			throw new TerminologyServiceException("Unable to expand imported value set \"" + value + "\" - Error was: " + vso.getError());
+		}
+		if (vso.getService() != null) {
+			throw new TerminologyServiceException("Unable to expand imported value set \"" + value + "\"");
+		}
 		if (vs.hasVersion())
 			if (!existsInParams(params, "version", new UriType(vs.getUrl() + "?version=" + vs.getVersion())))
 				params.add(new ValueSetExpansionParameterComponent().setName("version").setValue(new UriType(vs.getUrl() + "?version=" + vs.getVersion())));

@@ -6,7 +6,7 @@
 		<title>HAPI FHIR Changelog</title>
 	</properties>
 	<body>
-		<release version="1.6" date="TBD">
+		<release version="1.6" date="2016-07-07">
 			<action type="fix">
 				Performance has been improved for the initial FhirContext
 				object creation by avoiding a lot of unnecessary reflection. HAPI FHIR
@@ -35,9 +35,11 @@
 				latest versions (dependent HAPI modules listed in brackets):
 				<![CDATA[
 					<ul>
-						<li>Spring (JPA, Web Tester): 4.2.5 -&gt; 4.2.6</li>
+						<li>Spring (JPA, Web Tester): 4.2.5 -&gt; 4.3.0</li>
 						<li>Spring-Data (JPA): 1.9.2 -&gt; 1.10.1</li>
+						<!--<li>Hibernate ORM (JPA): 5.1.0 -&gt; 5.2.0</li>-->
 						<li>Hibernate Search (JPA): 5.5.2 -&gt; 5.5.3</li>
+						<li>Jetty (CLI): 9.3.9 -&gt; 9.3.10</li>
 					</ul>
 				]]>
 			</action>
@@ -358,7 +360,7 @@
 				Server parameters annotated with 
 				<![CDATA[<code>@Since</code>]]>
 				or
-				<![CDATA[<code>@CountS</code>]]>
+				<![CDATA[<code>@Count</code>]]>
 				which are of a FHIR type such as IntegerDt or DateTimeType will
 				now be set to null if the client's URL does not
 				contain this parameter. Previously they would be populated
@@ -380,6 +382,31 @@
 			<action type="add">
 				AuthorizationInterceptor can now allow or deny requests to extended
 				operations (e.g. $everything)
+			</action>
+			<action type="fix">
+				DecimalType used BigDecimal constructor instead of valueOf method to
+				create a BigDecimal from a double, resulting in weird floating point
+				conversions. Thanks to Craig McClendon for reporting!
+			</action>
+			<action type="fix" issue="394">
+				Remove the depdendency on a method from commons-lang3 3.3 which was
+				causing issues on some Android phones which come with an older version
+				of this library bundled. Thanks to Paolo Perliti for reporting!
+			</action>
+			<action type="fix">
+				Parser is now better able to handle encoding fields which have been
+				populated with a class that extends the expected class
+			</action>
+			<action type="fix">
+				When declaring a child with 
+				<![CDATA[<code>order=Child.REPLACE_PARENT</code>]]>
+				the serialized form still put the element at the
+				end of the resource instead of in the correct
+				order
+			</action>
+			<action type="fix">
+				Fix STU3 JPA resource providers to allow validate operation 
+				at instance level
 			</action>
 		</release>
 		<release version="1.5" date="2016-04-20">

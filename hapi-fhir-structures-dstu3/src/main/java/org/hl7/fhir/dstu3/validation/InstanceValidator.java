@@ -8,24 +8,28 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+import org.hl7.fhir.dstu3.elementmodel.Element;
+import org.hl7.fhir.dstu3.elementmodel.JsonParser;
+import org.hl7.fhir.dstu3.elementmodel.Manager;
+import org.hl7.fhir.dstu3.elementmodel.ParserBase;
+import org.hl7.fhir.dstu3.elementmodel.XmlParser;
+import org.hl7.fhir.dstu3.elementmodel.Element.SpecialElement;
+import org.hl7.fhir.dstu3.elementmodel.Manager.FhirFormat;
+import org.hl7.fhir.dstu3.elementmodel.ParserBase.ValidationPolicy;
 import org.hl7.fhir.dstu3.exceptions.DefinitionException;
 import org.hl7.fhir.dstu3.exceptions.FHIRException;
 import org.hl7.fhir.dstu3.formats.FormatUtilities;
-import org.hl7.fhir.dstu3.metamodel.Element;
-import org.hl7.fhir.dstu3.metamodel.Element.SpecialElement;
-import org.hl7.fhir.dstu3.metamodel.JsonParser;
-import org.hl7.fhir.dstu3.metamodel.Manager;
-import org.hl7.fhir.dstu3.metamodel.Manager.FhirFormat;
-import org.hl7.fhir.dstu3.metamodel.ParserBase;
-import org.hl7.fhir.dstu3.metamodel.ParserBase.ValidationPolicy;
-import org.hl7.fhir.dstu3.metamodel.XmlParser;
 import org.hl7.fhir.dstu3.model.Address;
 import org.hl7.fhir.dstu3.model.Attachment;
+import org.hl7.fhir.dstu3.model.Base;
 import org.hl7.fhir.dstu3.model.Bundle;
 import org.hl7.fhir.dstu3.model.Bundle.BundleEntryComponent;
 import org.hl7.fhir.dstu3.model.CodeSystem;
-import org.hl7.fhir.dstu3.model.CodeSystem.ConceptDefinitionComponent;
 import org.hl7.fhir.dstu3.model.CodeableConcept;
 import org.hl7.fhir.dstu3.model.Coding;
 import org.hl7.fhir.dstu3.model.ContactPoint;
@@ -45,6 +49,7 @@ import org.hl7.fhir.dstu3.model.IntegerType;
 import org.hl7.fhir.dstu3.model.OperationOutcome.IssueSeverity;
 import org.hl7.fhir.dstu3.model.OperationOutcome.IssueType;
 import org.hl7.fhir.dstu3.model.Period;
+import org.hl7.fhir.dstu3.model.Property;
 import org.hl7.fhir.dstu3.model.Quantity;
 import org.hl7.fhir.dstu3.model.Questionnaire;
 import org.hl7.fhir.dstu3.model.Questionnaire.QuestionnaireItemComponent;
@@ -54,6 +59,7 @@ import org.hl7.fhir.dstu3.model.Range;
 import org.hl7.fhir.dstu3.model.Ratio;
 import org.hl7.fhir.dstu3.model.Reference;
 import org.hl7.fhir.dstu3.model.Resource;
+import org.hl7.fhir.dstu3.model.ResourceType;
 import org.hl7.fhir.dstu3.model.SampledData;
 import org.hl7.fhir.dstu3.model.StringType;
 import org.hl7.fhir.dstu3.model.StructureDefinition;
@@ -66,6 +72,7 @@ import org.hl7.fhir.dstu3.model.Timing;
 import org.hl7.fhir.dstu3.model.Type;
 import org.hl7.fhir.dstu3.model.UriType;
 import org.hl7.fhir.dstu3.model.ValueSet;
+import org.hl7.fhir.dstu3.model.CodeSystem.ConceptDefinitionComponent;
 import org.hl7.fhir.dstu3.model.ValueSet.ValueSetExpansionContainsComponent;
 import org.hl7.fhir.dstu3.utils.FHIRPathEngine;
 import org.hl7.fhir.dstu3.utils.IWorkerContext;
@@ -150,12 +157,12 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
 
 
   @Override
-  public org.hl7.fhir.dstu3.metamodel.Element validate(List<ValidationMessage> errors, InputStream stream, FhirFormat format) throws Exception {
+  public org.hl7.fhir.dstu3.elementmodel.Element validate(List<ValidationMessage> errors, InputStream stream, FhirFormat format) throws Exception {
     return validate(errors, stream, format, (StructureDefinition) null);
   }  	
 
   @Override
-  public org.hl7.fhir.dstu3.metamodel.Element validate(List<ValidationMessage> errors, InputStream stream, FhirFormat format, String profile) throws Exception {
+  public org.hl7.fhir.dstu3.elementmodel.Element validate(List<ValidationMessage> errors, InputStream stream, FhirFormat format, String profile) throws Exception {
     long t = System.nanoTime();
     StructureDefinition p = context.fetchResource(StructureDefinition.class, profile);
     sdTime = sdTime + (System.nanoTime() - t);
@@ -165,7 +172,7 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
   }
 
   @Override
-  public org.hl7.fhir.dstu3.metamodel.Element validate(List<ValidationMessage> errors, InputStream stream, FhirFormat format, StructureDefinition profile) throws Exception {
+  public org.hl7.fhir.dstu3.elementmodel.Element validate(List<ValidationMessage> errors, InputStream stream, FhirFormat format, StructureDefinition profile) throws Exception {
     ParserBase parser = Manager.makeParser(context, format);
     if (parser instanceof XmlParser) 
       ((XmlParser) parser).setAllowXsiLocation(allowXsiLocation);
@@ -180,12 +187,12 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
 
 
   @Override
-  public org.hl7.fhir.dstu3.metamodel.Element validate(List<ValidationMessage> errors, Resource resource) throws Exception {
+  public org.hl7.fhir.dstu3.elementmodel.Element validate(List<ValidationMessage> errors, Resource resource) throws Exception {
     return validate(errors, resource, (StructureDefinition) null);
   }
 
   @Override
-  public org.hl7.fhir.dstu3.metamodel.Element validate(List<ValidationMessage> errors, Resource resource, String profile) throws Exception {
+  public org.hl7.fhir.dstu3.elementmodel.Element validate(List<ValidationMessage> errors, Resource resource, String profile) throws Exception {
     long t = System.nanoTime();
     StructureDefinition p = context.fetchResource(StructureDefinition.class, profile);
     sdTime = sdTime + (System.nanoTime() - t);
@@ -195,7 +202,7 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
   }
 
   @Override
-  public org.hl7.fhir.dstu3.metamodel.Element validate(List<ValidationMessage> errors, Resource resource, StructureDefinition profile) throws Exception {
+  public org.hl7.fhir.dstu3.elementmodel.Element validate(List<ValidationMessage> errors, Resource resource, StructureDefinition profile) throws Exception {
     throw new Exception("Not done yet");
     //    ParserBase parser = new ObjectParser(context);
     //    parser.setupValidation(ValidationPolicy.EVERYTHING, errors); 
@@ -211,7 +218,7 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
   }
 
   @Override
-  public org.hl7.fhir.dstu3.metamodel.Element validate(List<ValidationMessage> errors, org.w3c.dom.Element element) throws Exception {
+  public org.hl7.fhir.dstu3.elementmodel.Element validate(List<ValidationMessage> errors, org.w3c.dom.Element element) throws Exception {
     return validate(errors, element, (StructureDefinition) null);
   }
 
@@ -226,7 +233,7 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
   }
 
   @Override
-  public org.hl7.fhir.dstu3.metamodel.Element validate(List<ValidationMessage> errors, org.w3c.dom.Element element, String profile) throws Exception {
+  public org.hl7.fhir.dstu3.elementmodel.Element validate(List<ValidationMessage> errors, org.w3c.dom.Element element, String profile) throws Exception {
     long t = System.nanoTime();
     StructureDefinition p = context.fetchResource(StructureDefinition.class, profile);
     sdTime = sdTime + (System.nanoTime() - t);
@@ -236,7 +243,7 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
   }
 
   @Override
-  public org.hl7.fhir.dstu3.metamodel.Element validate(List<ValidationMessage> errors, org.w3c.dom.Element element, StructureDefinition profile) throws Exception {
+  public org.hl7.fhir.dstu3.elementmodel.Element validate(List<ValidationMessage> errors, org.w3c.dom.Element element, StructureDefinition profile) throws Exception {
     XmlParser parser = new XmlParser(context);
     parser.setupValidation(ValidationPolicy.EVERYTHING, errors); 
     long t = System.nanoTime();
@@ -247,12 +254,12 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
   }
 
   @Override
-  public org.hl7.fhir.dstu3.metamodel.Element validate(List<ValidationMessage> errors, Document document) throws Exception {
+  public org.hl7.fhir.dstu3.elementmodel.Element validate(List<ValidationMessage> errors, Document document) throws Exception {
     return validate(errors, document, (StructureDefinition) null);
   }
 
   @Override
-  public org.hl7.fhir.dstu3.metamodel.Element validate(List<ValidationMessage> errors, Document document, String profile) throws Exception {
+  public org.hl7.fhir.dstu3.elementmodel.Element validate(List<ValidationMessage> errors, Document document, String profile) throws Exception {
     long t = System.nanoTime();
     StructureDefinition p = context.fetchResource(StructureDefinition.class, profile);
     sdTime = sdTime + (System.nanoTime() - t);
@@ -262,7 +269,7 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
   }
 
   @Override
-  public org.hl7.fhir.dstu3.metamodel.Element validate(List<ValidationMessage> errors, Document document, StructureDefinition profile) throws Exception {
+  public org.hl7.fhir.dstu3.elementmodel.Element validate(List<ValidationMessage> errors, Document document, StructureDefinition profile) throws Exception {
     XmlParser parser = new XmlParser(context);
     parser.setupValidation(ValidationPolicy.EVERYTHING, errors);
     long t = System.nanoTime();
@@ -275,12 +282,12 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
   }
 
   @Override
-  public org.hl7.fhir.dstu3.metamodel.Element validate(List<ValidationMessage> errors, JsonObject object) throws Exception {
+  public org.hl7.fhir.dstu3.elementmodel.Element validate(List<ValidationMessage> errors, JsonObject object) throws Exception {
     return validate(errors, object, (StructureDefinition) null);
   }
 
   @Override
-  public org.hl7.fhir.dstu3.metamodel.Element validate(List<ValidationMessage> errors, JsonObject object, String profile) throws Exception {
+  public org.hl7.fhir.dstu3.elementmodel.Element validate(List<ValidationMessage> errors, JsonObject object, String profile) throws Exception {
     long t = System.nanoTime();
     StructureDefinition p = context.fetchResource(StructureDefinition.class, profile);
     sdTime = sdTime + (System.nanoTime() - t);
@@ -290,7 +297,7 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
   }
 
   @Override
-  public org.hl7.fhir.dstu3.metamodel.Element validate(List<ValidationMessage> errors, JsonObject object, StructureDefinition profile) throws Exception {
+  public org.hl7.fhir.dstu3.elementmodel.Element validate(List<ValidationMessage> errors, JsonObject object, StructureDefinition profile) throws Exception {
     JsonParser parser = new JsonParser(context);
     parser.setupValidation(ValidationPolicy.EVERYTHING, errors); 
     long t = System.nanoTime();
@@ -407,36 +414,12 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
               } else {
                 long t = System.nanoTime();
                 
-                boolean atLeastOneSystemIsSupported = false;
-                for (Coding nextCoding : cc.getCoding()) {
-                  String nextSystem = nextCoding.getSystem();
-                  if (isNotBlank(nextSystem) && context.supportsSystem(nextSystem)) {
-                     atLeastOneSystemIsSupported = true;
-                     break;
-                  }
-                }
-                
-                if (binding.getStrength() == BindingStrength.EXAMPLE) {
-                  if (!atLeastOneSystemIsSupported) {
-                    // ignore this since we can't validate but it doesn't matter..
-                  } else {
-                     for (Coding nextCoding : cc.getCoding()) {
-                        String nextSystem = nextCoding.getSystem();
-                        // If we do support the system, let's make sure it's a valid code in that VS
-                        if (isNotBlank(nextSystem) && context.supportsSystem(nextSystem)) {
-                          String nextCode = nextCoding.getCode();
-                          String nextDisplay = nextCoding.getDisplay();
-                          ValidationResult vr = context.validateCode(nextSystem, nextCode, nextDisplay);
-                          if (!vr.isOk()) {
-                            rule(errors, IssueType.CODEINVALID, element.line(), element.col(), path, false, "The code {0} is invalid in code system {1}", nextCode, nextSystem);
-                          }
-                        }
-                      }
-                  }
-                } else {
+                // Check whether the codes are appropriate for the type of binding we have
+                boolean bindingsOk = true;
+                if (binding.getStrength() != BindingStrength.EXAMPLE) {
                   ValidationResult vr = context.validateCode(cc, valueset);
-                  txTime = txTime + (System.nanoTime() - t);
                   if (!vr.isOk()) {
+                    bindingsOk = false;
                     if (binding.getStrength() == BindingStrength.REQUIRED)
                       rule(errors, IssueType.CODEINVALID, element.line(), element.col(), path, false, "None of the codes provided are in the value set " + describeReference(binding.getValueSet()) + " (" + valueset.getUrl()+", and a code from this value set is required");
                     else if (binding.getStrength() == BindingStrength.EXTENSIBLE)
@@ -445,6 +428,23 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
                       hint(errors, IssueType.CODEINVALID, element.line(), element.col(), path, false,  "None of the codes provided are in the value set " + describeReference(binding.getValueSet()) + " (" + valueset.getUrl() + ", and a code is recommended to come from this value set");
                   }
                 }
+
+                // Then, for any codes that are in code systems we are able
+                // to validate, we'll validate that the codes actually exist
+                if (bindingsOk) {
+	                for (Coding nextCoding : cc.getCoding()) {
+	                  String nextCode = nextCoding.getCode();
+	                  String nextSystem = nextCoding.getSystem();
+	                  if (isNotBlank(nextCode) && isNotBlank(nextSystem) && context.supportsSystem(nextSystem)) {
+	                  	ValidationResult vr = context.validateCode(nextSystem, nextCode, null);
+	                  	if (!vr.isOk()) {
+	                        warning(errors, IssueType.CODEINVALID, element.line(), element.col(), path, false, "Code {0} is not a valid code in code system {1}", nextCode, nextSystem);
+	                  	}
+	                  }
+	                }
+                }
+
+                txTime = txTime + (System.nanoTime() - t);
               }
             } catch (Exception e) {
               warning(errors, IssueType.CODEINVALID, element.line(), element.col(), path, false, "Error "+e.getMessage()+" validating CodeableConcept");
@@ -813,6 +813,9 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
   }
 
   private void checkPrimitive(List<ValidationMessage> errors, String path, String type, ElementDefinition context, Element e, StructureDefinition profile) {
+    if (isBlank(e.primitiveValue())) {
+      return;
+    }
     if (type.equals("boolean")) {
       rule(errors, IssueType.INVALID, e.line(), e.col(), path, "true".equals(e.primitiveValue()) || "false".equals(e.primitiveValue()), "boolean values must be 'true' or 'false'");
     }
@@ -821,7 +824,7 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
       rule(errors, IssueType.INVALID, e.line(), e.col(), path, !e.primitiveValue().startsWith("uuid:"), "URI values cannot start with uuid:");
       rule(errors, IssueType.INVALID, e.line(), e.col(), path, e.primitiveValue().equals(e.primitiveValue().trim()), "URI values cannot have leading or trailing whitespace");
     }
-    if (!type.equalsIgnoreCase("string") && e.hasPrimitiveValue()) {
+    if (!type.equalsIgnoreCase("string")) {
       if (rule(errors, IssueType.INVALID, e.line(), e.col(), path, e.primitiveValue() == null || e.primitiveValue().length() > 0, "@value cannot be empty")) {
         warning(errors, IssueType.INVALID, e.line(), e.col(), path, e.primitiveValue() == null || e.primitiveValue().trim().equals(e.primitiveValue()), "value should not start or finish with whitespace");
       }
@@ -842,13 +845,13 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
       rule(errors, IssueType.INVALID, e.line(), e.col(), path, yearIsValid(e.primitiveValue()), "The value '" + e.primitiveValue() + "' does not have a valid year");
     }
 
-    if (type.equals("code") && e.primitiveValue() != null) {
+    if (type.equals("code")) {
       // Technically, a code is restricted to string which has at least one character and no leading or trailing whitespace, and where there is no whitespace
       // other than single spaces in the contents
       rule(errors, IssueType.INVALID, e.line(), e.col(), path, passesCodeWhitespaceRules(e.primitiveValue()), "The code '" + e.primitiveValue() + "' is not valid (whitespace rules)");
     }
 
-    if (context.hasBinding() && e.primitiveValue() != null) {
+    if (context.hasBinding()) {
       checkPrimitiveBinding(errors, path, type, context, e, profile);
     }
 
@@ -2071,7 +2074,7 @@ public class InstanceValidator extends BaseValidator implements IResourceValidat
     StructureDefinition profile = this.context.fetchResource(StructureDefinition.class, "http://hl7.org/fhir/StructureDefinition/" + resourceName);
     sdTime = sdTime + (System.nanoTime() - t);
     // special case: resource wrapper is reset if we're crossing a bundle boundary, but not otherwise
-    if (element.getSpecial() == SpecialElement.BUNDLE_ENTRY) 
+    if (element.getSpecial() == SpecialElement.BUNDLE_ENTRY || element.getSpecial() == SpecialElement.PARAMETER ) 
       resource = element;
     if (rule(errors, IssueType.INVALID, element.line(), element.col(), stack.getLiteralPath(), profile != null, "No profile found for contained resource of type '" + resourceName + "'"))
       validateResource(errors, resource, element, profile, idstatus, stack);
