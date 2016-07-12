@@ -310,7 +310,7 @@ public abstract class BaseHapiFhirResourceDao<T extends IBaseResource> extends B
 		}
 
 		if (isNotBlank(theResource.getIdElement().getIdPart())) {
-			if (isValidPid(theResource.getIdElement())) {
+			if (false) {
 				throw new UnprocessableEntityException(
 						"This server cannot create an entity with a user-specified numeric ID - Client should not specify an ID when creating a new resource, or should include at least one letter in the ID to force a client-defined ID");
 			}
@@ -788,7 +788,7 @@ public abstract class BaseHapiFhirResourceDao<T extends IBaseResource> extends B
 		validateResourceType(entity);
 
 		if (theCheckForForcedId) {
-			validateGivenIdIsAppropriateToRetrieveResource(theId, entity);
+//			validateGivenIdIsAppropriateToRetrieveResource(theId, entity);
 		}
 		return entity;
 	}
@@ -1005,7 +1005,7 @@ public abstract class BaseHapiFhirResourceDao<T extends IBaseResource> extends B
 			try {
 				entity = readEntityLatestVersion(resourceId);
 			} catch (ResourceNotFoundException e) {
-				if (resourceId.isIdPartValidLong()) {
+				if (false) {
 					throw new InvalidRequestException(
 							getContext().getLocalizer().getMessage(BaseHapiFhirResourceDao.class, "failedToCreateWithClientAssignedNumericId", theResource.getIdElement().getIdPart()));
 				}

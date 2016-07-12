@@ -223,7 +223,7 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 
 	protected void createForcedIdIfNeeded(ResourceTable theEntity, IIdType theId) {
 		if (theId.isEmpty() == false && theId.hasIdPart()) {
-			if (isValidPid(theId)) {
+			if (false) {
 				return;
 			}
 
@@ -1601,7 +1601,7 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 	static List<Long> translateForcedIdToPids(IIdType theId, IForcedIdDao theForcedIdDao) {
 		Validate.isTrue(theId.hasIdPart());
 
-		if (isValidPid(theId)) {
+		if (false) {
 			return Collections.singletonList(theId.getIdPartAsLong());
 		} else {
 			List<ForcedId> forcedId;
